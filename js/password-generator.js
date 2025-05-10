@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
 function setupEventListeners() {
     generateBtn.addEventListener('click', generatePassword);
     copyBtn.addEventListener('click', copyToClipboard);
-    lengthSlider.addEventListener('input', updateLengthDisplay);
+    lengthSlider.addEventListener('input', debounce(updateLengthDisplay, 100));
     clearHistoryBtn.addEventListener('click', clearHistory);
     advancedToggle.addEventListener('click', toggleAdvancedOptions);
     themeToggle.addEventListener('click', toggleTheme);
@@ -62,6 +62,33 @@ function setupEventListeners() {
             addWord();
         }
     });
+
+    // Event delegation for word tags and history items
+    wordTags.addEventListener('click', (e) => {
+        if (e.target.closest('.tag-remove')) {
+            const word = e.target.closest('.tag').dataset.word;
+            removeWord(word);
+        }
+    });
+
+    historyList.addEventListener('click', (e) => {
+        if (e.target.closest('.history-copy')) {
+            const index = e.target.closest('.history-item').dataset.index;
+            copyHistoryItem(index);
+        }
+    });
+}
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
 function updateLengthDisplay() {
@@ -81,6 +108,12 @@ function generatePassword() {
         randomizeWordOrder: randomizeWordOrderCheckbox.checked,
         capitalizeWords: capitalizeWordsCheckbox.checked
     };
+
+    // Validate at least one character type is selected
+    if (!options.uppercase && !options.lowercase && !options.numbers && !options.symbols) {
+        showToast('Please select at least one character type', 'error');
+        return;
+    }
 
     let password = '';
     
@@ -126,14 +159,46 @@ function generateWordBasedPassword(length, options) {
         words = words.map(word => word.charAt(0).toUpperCase() + word.slice(1));
     }
 
-    let password = words.join('');
-    
-    // Add random characters if needed to reach desired length
-    while (password.length < length) {
-        password += generateRandomPassword(1, options);
+    // Calculate how many random characters we need
+    const totalWordLength = words.join('').length;
+    const randomCharsNeeded = Math.max(0, length - totalWordLength);
+
+    // Generate random characters
+    let randomChars = '';
+    if (randomCharsNeeded > 0) {
+        randomChars = generateRandomPassword(randomCharsNeeded, options);
     }
 
-    // Trim to exact length if too long
+    // Combine words and random characters
+    let password = words.join('');
+    
+    // Insert random characters at random positions
+    if (randomChars) {
+        const positions = [];
+        for (let i = 0; i < randomChars.length; i++) {
+            positions.push(Math.floor(Math.random() * (password.length + 1)));
+        }
+        positions.sort((a, b) => a - b);
+        
+        for (let i = 0; i < positions.length; i++) {
+            password = password.slice(0, positions[i]) + randomChars[i] + password.slice(positions[i]);
+        }
+    }
+
+    // Ensure password meets requirements
+    if (options.numbers && !/\d/.test(password)) {
+        const randomNum = charSets.numbers[Math.floor(Math.random() * charSets.numbers.length)];
+        const pos = Math.floor(Math.random() * password.length);
+        password = password.slice(0, pos) + randomNum + password.slice(pos + 1);
+    }
+
+    if (options.symbols && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+        const randomSym = charSets.symbols[Math.floor(Math.random() * charSets.symbols.length)];
+        const pos = Math.floor(Math.random() * password.length);
+        password = password.slice(0, pos) + randomSym + password.slice(pos + 1);
+    }
+
+    // Trim to exact length if needed
     if (password.length > length) {
         password = password.slice(0, length);
     }
@@ -150,6 +215,11 @@ function shuffleArray(array) {
 }
 
 function updateStrengthMeter(password) {
+    if (!window.zxcvbn) {
+        console.error('zxcvbn library not loaded');
+        return;
+    }
+
     const result = zxcvbn(password);
     const strength = result.score;
     const feedback = result.feedback.warning || result.feedback.suggestions[0] || '';
@@ -164,19 +234,41 @@ function updateStrengthMeter(password) {
 
 function copyToClipboard() {
     const password = passwordOutput.value;
-    if (!password) return;
+    if (!password) {
+        showToast('No password to copy', 'error');
+        return;
+    }
 
-    navigator.clipboard.writeText(password).then(() => {
-        showToast('Password copied to clipboard!');
-    }).catch(err => {
-        showToast('Failed to copy password');
-        console.error('Failed to copy password:', err);
-    });
+    navigator.clipboard.writeText(password)
+        .then(() => {
+            showToast('Password copied to clipboard!', 'success');
+        })
+        .catch(err => {
+            console.error('Failed to copy password:', err);
+            // Fallback for older browsers
+            const textArea = document.createElement('textarea');
+            textArea.value = password;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast('Password copied to clipboard!', 'success');
+            } catch (err) {
+                showToast('Failed to copy password', 'error');
+            }
+            document.body.removeChild(textArea);
+        });
 }
 
-function showToast(message) {
+function showToast(message, type = 'success') {
     const toastMessage = document.getElementById('toast-message');
     toastMessage.textContent = message;
+    
+    // Remove existing toast classes
+    toast.classList.remove('toast-success', 'toast-error', 'toast-info');
+    // Add new toast class
+    toast.classList.add(`toast-${type}`);
+    
     toast.classList.remove('translate-y-10', 'opacity-0');
     setTimeout(() => {
         toast.classList.add('translate-y-10', 'opacity-0');
@@ -184,56 +276,82 @@ function showToast(message) {
 }
 
 function addToHistory(password) {
-    const history = JSON.parse(localStorage.getItem('passwordHistory') || '[]');
-    history.unshift({
-        password,
-        timestamp: new Date().toISOString()
-    });
-    
-    // Keep only last 10 passwords
-    if (history.length > 10) {
-        history.pop();
+    try {
+        const history = JSON.parse(localStorage.getItem('passwordHistory') || '[]');
+        history.unshift({
+            password,
+            timestamp: new Date().toISOString()
+        });
+        
+        // Keep only last 10 passwords
+        if (history.length > 10) {
+            history.pop();
+        }
+        
+        localStorage.setItem('passwordHistory', JSON.stringify(history));
+        updateHistoryDisplay();
+    } catch (error) {
+        console.error('Error saving to history:', error);
+        showToast('Failed to save password to history', 'error');
     }
-    
-    localStorage.setItem('passwordHistory', JSON.stringify(history));
-    updateHistoryDisplay();
 }
 
 function updateHistoryDisplay() {
-    const history = JSON.parse(localStorage.getItem('passwordHistory') || '[]');
-    
-    if (history.length === 0) {
-        historyList.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">No passwords generated yet</p>';
-        return;
-    }
+    try {
+        const history = JSON.parse(localStorage.getItem('passwordHistory') || '[]');
+        
+        if (history.length === 0) {
+            historyList.innerHTML = '<p class="text-gray-500 dark:text-gray-400 text-center py-4">No passwords generated yet</p>';
+            return;
+        }
 
-    historyList.innerHTML = history.map((item, index) => `
-        <div class="history-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg">
-            <div class="flex-1">
-                <div class="font-mono">${item.password}</div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">
-                    ${new Date(item.timestamp).toLocaleString()}
+        historyList.innerHTML = history.map((item, index) => `
+            <div class="history-item flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg" data-index="${index}">
+                <div class="flex-1">
+                    <div class="font-mono">${item.password}</div>
+                    <div class="text-sm text-gray-500 dark:text-gray-400">
+                        ${new Date(item.timestamp).toLocaleString()}
+                    </div>
                 </div>
+                <button class="history-copy opacity-0 p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400" 
+                        aria-label="Copy password">
+                    <i class="far fa-copy"></i>
+                </button>
             </div>
-            <button class="history-copy opacity-0 p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400" 
-                    onclick="copyHistoryItem(${index})">
-                <i class="far fa-copy"></i>
-            </button>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('Error updating history display:', error);
+        showToast('Failed to load password history', 'error');
+    }
 }
 
 function copyHistoryItem(index) {
-    const history = JSON.parse(localStorage.getItem('passwordHistory') || '[]');
-    const password = history[index].password;
-    navigator.clipboard.writeText(password).then(() => {
-        showToast('Password copied to clipboard!');
-    });
+    try {
+        const history = JSON.parse(localStorage.getItem('passwordHistory') || '[]');
+        const password = history[index].password;
+        navigator.clipboard.writeText(password)
+            .then(() => {
+                showToast('Password copied to clipboard!', 'success');
+            })
+            .catch(err => {
+                console.error('Failed to copy password:', err);
+                showToast('Failed to copy password', 'error');
+            });
+    } catch (error) {
+        console.error('Error copying history item:', error);
+        showToast('Failed to copy password', 'error');
+    }
 }
 
 function clearHistory() {
-    localStorage.removeItem('passwordHistory');
-    updateHistoryDisplay();
+    try {
+        localStorage.removeItem('passwordHistory');
+        updateHistoryDisplay();
+        showToast('History cleared', 'info');
+    } catch (error) {
+        console.error('Error clearing history:', error);
+        showToast('Failed to clear history', 'error');
+    }
 }
 
 function loadHistory() {
@@ -248,37 +366,106 @@ function toggleAdvancedOptions() {
 }
 
 function toggleTheme() {
-    document.documentElement.classList.toggle('dark');
     const isDark = document.documentElement.classList.contains('dark');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    if (isDark) {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+    } else {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+    }
 }
 
 function loadTheme() {
+    // Check if theme preference is already saved
     const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    console.log('Theme Detection:', {
+        savedTheme,
+        prefersDark,
+        systemTheme: prefersDark ? 'dark' : 'light'
+    });
+    
+    // If no saved preference, detect system theme
+    if (!savedTheme) {
+        if (prefersDark) {
+            console.log('Setting dark theme based on system preference');
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            console.log('Setting light theme based on system preference');
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        }
+    } else {
+        // Apply saved preference
+        if (savedTheme === 'dark') {
+            console.log('Setting dark theme based on saved preference');
+            document.documentElement.classList.add('dark');
+        } else {
+            console.log('Setting light theme based on saved preference');
+            document.documentElement.classList.remove('dark');
+        }
     }
 }
 
+// Add listener for system theme changes
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    console.log('System theme changed:', e.matches ? 'dark' : 'light');
+    // Only update if user hasn't set a preference
+    if (!localStorage.getItem('theme')) {
+        if (e.matches) {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+        }
+    }
+});
+
 function addWord() {
     const word = wordInput.value.trim();
-    if (word && !wordList.includes(word)) {
-        wordList.push(word);
-        updateWordTags();
-        wordInput.value = '';
+    
+    // Validate word
+    if (!word) {
+        showToast('Please enter a word', 'error');
+        return;
     }
+    
+    if (word.length > 15) {
+        showToast('Word is too long (max 15 characters)', 'error');
+        return;
+    }
+    
+    if (!/^[a-zA-Z0-9]+$/.test(word)) {
+        showToast('Word can only contain letters and numbers', 'error');
+        return;
+    }
+    
+    if (wordList.includes(word)) {
+        showToast('Word already added', 'error');
+        return;
+    }
+    
+    wordList.push(word);
+    updateWordTags();
+    wordInput.value = '';
+    showToast('Word added successfully', 'success');
 }
 
 function removeWord(word) {
     wordList = wordList.filter(w => w !== word);
     updateWordTags();
+    showToast('Word removed', 'info');
 }
 
 function updateWordTags() {
     wordTags.innerHTML = wordList.map(word => `
-        <div class="tag">
+        <div class="tag" data-word="${word}">
             ${word}
-            <span class="tag-remove" onclick="removeWord('${word}')">
+            <span class="tag-remove" aria-label="Remove word">
                 <i class="fas fa-times"></i>
             </span>
         </div>

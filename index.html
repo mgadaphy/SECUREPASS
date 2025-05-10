@@ -1,28 +1,53 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Password Generator</title>
+    <title>SecurePass - Advanced Password Generator</title>
+    <script>
+        // Prevent flash of wrong theme
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            console.log('Initial Theme Detection:', {
+                savedTheme,
+                prefersDark,
+                systemTheme: prefersDark ? 'dark' : 'light'
+            });
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.classList.add('dark');
+                if (!savedTheme) {
+                    localStorage.setItem('theme', 'dark');
+                }
+            } else {
+                document.documentElement.classList.remove('dark');
+                if (!savedTheme) {
+                    localStorage.setItem('theme', 'light');
+                }
+            }
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js"></script>
     <link rel="stylesheet" href="css/styles.css">
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen transition-colors duration-300">
+<body class="bg-gray-100 text-gray-800 min-h-screen transition-colors duration-300">
     <div class="container mx-auto px-4 py-8 max-w-4xl">
         <!-- Header -->
         <header class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                <i class="fas fa-lock mr-2"></i> WordMix Password Generator
+            <h1 class="text-3xl font-bold text-blue-600">
+                <i class="fas fa-lock mr-2"></i> SecurePass Generator
             </h1>
-            <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+            <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-200 transition-colors">
                 <i class="fas fa-moon dark:hidden"></i>
                 <i class="fas fa-sun hidden dark:inline"></i>
             </button>
         </header>
 
-        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden transition-all duration-300">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden transition-all duration-300">
             <!-- Main Card -->
             <div class="p-6 md:p-8">
                 <!-- Password Display -->
@@ -32,17 +57,17 @@
                             id="password-output" 
                             type="text" 
                             readonly 
-                            class="w-full p-4 pr-12 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-lg"
+                            class="w-full p-4 pr-12 bg-gray-50 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-lg"
                             placeholder="Your secure password will appear here">
                         <button 
                             id="copy-password" 
-                            class="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600 dark:hover:text-blue-400">
+                            class="absolute right-3 top-1/2 transform -translate-y-1/2 p-2 text-gray-500 hover:text-blue-600">
                             <i class="far fa-copy"></i>
                         </button>
                     </div>
                     <button 
                         id="generate-password" 
-                        class="ml-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white px-6 py-4 rounded-lg font-medium transition-colors">
+                        class="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-4 rounded-lg font-medium transition-colors">
                         <i class="fas fa-sync-alt mr-2"></i> Generate
                     </button>
                 </div>
@@ -53,7 +78,7 @@
                         <span id="strength-label" class="font-medium">Password Strength:</span>
                         <span id="strength-text" class="font-bold">-</span>
                     </div>
-                    <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
                         <div id="strength-meter" class="h-2.5 rounded-full w-0"></div>
                     </div>
                 </div>
@@ -79,7 +104,7 @@
                             id="uppercase" 
                             type="checkbox" 
                             checked 
-                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                         <label for="uppercase" class="ml-2">Uppercase Letters (A-Z)</label>
                     </div>
                     <div class="flex items-center">
@@ -87,7 +112,7 @@
                             id="lowercase" 
                             type="checkbox" 
                             checked 
-                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                         <label for="lowercase" class="ml-2">Lowercase Letters (a-z)</label>
                     </div>
                     <div class="flex items-center">
@@ -95,7 +120,7 @@
                             id="numbers" 
                             type="checkbox" 
                             checked 
-                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                         <label for="numbers" class="ml-2">Numbers (0-9)</label>
                     </div>
                     <div class="flex items-center">
@@ -103,7 +128,7 @@
                             id="symbols" 
                             type="checkbox" 
                             checked 
-                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                            class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                         <label for="symbols" class="ml-2">Symbols (!@#$%^&*)</label>
                     </div>
                 </div>
@@ -123,16 +148,16 @@
                                 class="word-input">
                             <button 
                                 id="add-word" 
-                                class="ml-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white px-4 py-2 rounded-lg">
+                                class="ml-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
                                 <i class="fas fa-plus"></i>
                             </button>
                         </div>
                     </div>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Words will be mixed with random characters for security</p>
+                    <p class="text-sm text-gray-500 mt-1">Words will be mixed with random characters for security</p>
                 </div>
 
                 <!-- Mixing Options -->
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mb-6">
+                <div class="border-t border-gray-200 pt-6 mb-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-medium">Mixing Options</h3>
                     </div>
@@ -142,7 +167,7 @@
                                 id="mix-words" 
                                 type="checkbox" 
                                 checked
-                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                             <label for="mix-words" class="ml-2">Mix words with random characters</label>
                         </div>
                         <div class="flex items-center">
@@ -150,24 +175,24 @@
                                 id="randomize-word-order" 
                                 type="checkbox" 
                                 checked
-                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                             <label for="randomize-word-order" class="ml-2">Randomize word order</label>
                         </div>
                         <div class="flex items-center">
                             <input 
                                 id="capitalize-words" 
                                 type="checkbox" 
-                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                             <label for="capitalize-words" class="ml-2">Capitalize words</label>
                         </div>
                     </div>
                 </div>
 
                 <!-- Advanced Options -->
-                <div class="border-t border-gray-200 dark:border-gray-700 pt-6 mb-6">
+                <div class="border-t border-gray-200 pt-6 mb-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-medium">Advanced Options</h3>
-                        <button id="advanced-toggle" class="text-blue-600 dark:text-blue-400 hover:underline">
+                        <button id="advanced-toggle" class="text-blue-600 hover:underline">
                             <i class="fas fa-chevron-down"></i>
                         </button>
                     </div>
@@ -176,14 +201,14 @@
                             <input 
                                 id="exclude-ambiguous" 
                                 type="checkbox" 
-                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                             <label for="exclude-ambiguous" class="ml-2">Exclude ambiguous characters (l,1,I,0,O)</label>
                         </div>
                         <div class="flex items-center">
                             <input 
                                 id="exclude-similar" 
                                 type="checkbox" 
-                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600">
+                                class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500">
                             <label for="exclude-similar" class="ml-2">Exclude similar characters (i,j,o,0,1,l)</label>
                         </div>
                     </div>
@@ -191,27 +216,28 @@
             </div>
 
             <!-- Password History -->
-            <div class="border-t border-gray-200 dark:border-gray-700 p-6 md:p-8 bg-gray-50 dark:bg-gray-700">
+            <div class="border-t border-gray-200 p-6 md:p-8 bg-gray-50">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-lg font-medium">
                         <i class="fas fa-history mr-2"></i> Password History
                     </h2>
-                    <button id="clear-history" class="text-sm text-red-500 hover:text-red-700 dark:hover:text-red-400">
+                    <button id="clear-history" class="text-sm text-red-500 hover:text-red-700">
                         Clear All
                     </button>
                 </div>
                 
                 <div id="history-list" class="space-y-2 max-h-60 overflow-y-auto">
                     <!-- History items will be added here -->
-                    <p class="text-gray-500 dark:text-gray-400 text-center py-4">No passwords generated yet</p>
+                    <p class="text-gray-500 text-center py-4">No passwords generated yet</p>
                 </div>
             </div>
         </div>
 
         <!-- Footer -->
-        <footer class="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>Generated passwords are never stored on our servers. All processing happens in your browser.</p>
-            <p class="mt-2">© 2023 SecurePass Generator | <a href="#" class="hover:text-blue-600 dark:hover:text-blue-400">Privacy Policy</a></p>
+        <footer class="mt-8 text-center text-sm text-gray-500">
+            <div class="text-center text-gray-600 dark:text-gray-400">
+                <p class="mt-2">© 2023 SecurePass Generator | Created by <a href="https://mogadonko.com" class="hover:text-blue-600">mogadonko.com</a> | <a href="#" class="hover:text-blue-600">Privacy Policy</a></p>
+            </div>
         </footer>
     </div>
 
