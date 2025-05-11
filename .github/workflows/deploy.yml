@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - main  # Set this to your default branch
-
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Verify HTML
+        run: |
+          if [ ! -f "index.html" ]; then
+            echo "index.html not found!"
+            exit 1
+          fi
+
+      - name: Verify CSS
+        run: |
+          if [ ! -d "css" ] || [ ! -f "css/styles.css" ]; then
+            echo "CSS files not found!"
+            exit 1
+          fi
+
+      - name: Verify JavaScript
+        run: |
+          if [ ! -d "js" ] || [ ! -f "js/password-generator.js" ]; then
+            echo "JavaScript files not found!"
+            exit 1
+          fi
+
   deploy:
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -25,12 +61,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
       - name: Setup Pages
         uses: actions/configure-pages@v3
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
           path: '.'
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v2 
